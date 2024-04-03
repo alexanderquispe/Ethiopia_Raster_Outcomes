@@ -12,6 +12,8 @@ ipykernel = "*"
 black = "*"
 requests = "*"
 matplotlib = "*"
+rasterio = "*"
+tqdm = "*"
 
 [dev-packages]
 
