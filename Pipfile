@@ -14,6 +14,8 @@ requests = "*"
 matplotlib = "*"
 rasterio = "*"
 tqdm = "*"
+salem = "*"
+scikit-image = "*"
 
 [dev-packages]
 
