@@ -1,0 +1,18 @@
+labels = {
+    0: "0: NODATA",
+    1: "1: MSZ, open spaces, low vegetation surfaces NDVI <= 0.3",
+    2: "2: MSZ, open spaces, medium vegetation surfaces 0.3 < NDVI <=0.5",
+    3: "3: MSZ, open spaces, high vegetation surfaces NDVI > 0.5",
+    4: "4: MSZ, open spaces, water surfaces LAND < 0.5",
+    5: "5: MSZ, open spaces, road surfaces",
+    11: "11: MSZ, built spaces, residential, building height <= 3m",
+    12: "12: MSZ, built spaces, residential, 3m < building height <= 6m",
+    13: "13: MSZ, built spaces, residential, 6m < building height <= 15m",
+    14: "14: MSZ, built spaces, residential, 15m < building height <= 30m",
+    15: "15: MSZ, built spaces, residential, building height > 30m",
+    21: "21: MSZ, built spaces, non-residential, building height <= 3m",
+    22: "22: MSZ, built spaces, non-residential, 3m < building height <= 6m",
+    23: "23: MSZ, built spaces, non-residential, 6m < building height <= 15m",
+    24: "24: MSZ, built spaces, non-residential, 15m < building height <= 30m",
+    25: "25: MSZ, built spaces, non-residential, building height > 30m",
+}
