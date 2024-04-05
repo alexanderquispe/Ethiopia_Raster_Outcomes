@@ -10,6 +10,25 @@ from tqdm import tqdm
 from rasterio.mask import mask
 
 
+def create_dir(path: str):
+    split_path = path.split("/")
+    dir_value = split_path[: len(split_path) - 1]
+    dir_name = "/".join(dir_value)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
+
+cols_dataref = [
+    "id",
+    "fnid",
+    "parent_id",
+    "admin_0",
+    "admin_1",
+    "admin_2",
+    "admin_3",
+]
+
+
 class RasterIOInd:
     def __init__(
         self,
@@ -17,9 +36,18 @@ class RasterIOInd:
         shp_gdf: gpd.GeoDataFrame,
         metric_name: str,
         save_result_csv: str = None,
-        cols_dataref=["admin_0", "admin_1", "admin_2", "admin_3"],
+        cols_dataref=[
+            "id",
+            "fnid",
+            "parent_id",
+            "admin_0",
+            "admin_1",
+            "admin_2",
+            "admin_3",
+        ],
         metrics=[np.mean, np.std, np.sum],
         only_metric=False,
+        settlement=False,
     ) -> None:
         self.raster = path_tiff
         self.name = metric_name
@@ -28,6 +56,7 @@ class RasterIOInd:
         self.gdf = shp_gdf
         self.only_metric = only_metric
         self.save = save_result_csv
+        self.settlement = settlement
         with rio.open(path_tiff) as raster:
             self.crs = raster.crs.to_dict()
 
@@ -44,6 +73,8 @@ class RasterIOInd:
         values = np.array(raster_cropped.flatten()).astype(float)
         values = values[~np.isnan(values)]
         values = values[values > 0]
+        if self.settlement:
+            return values
         metrics = self.metrics
         stats = [metric(values) for metric in metrics]
 
@@ -57,6 +88,17 @@ class RasterIOInd:
         with rio.open(self.raster) as raster:
             raster_cropped, transformation = mask(raster, row_gdf.geometry, crop=True)
 
+        if self.settlement:
+            values_ref = self._metric_values(raster_cropped)
+            unique_values, count_values = np.unique(values_ref, return_counts=True)
+            df = pd.DataFrame({"values": unique_values, "count": count_values})
+            df["values"] = df["values"].astype(int).astype(str)
+            row_gdf_out = pd.concat(
+                (row_gdf_out.reset_index(), df.reset_index().drop("index", axis=1)),
+                axis=1,
+            )
+
+            return row_gdf_out
         if self.only_metric:
             stats = self._metric_values(raster_cropped)
         else:
