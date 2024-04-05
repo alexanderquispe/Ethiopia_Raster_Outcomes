@@ -1,4 +1,4 @@
-import pandas as pd, os
+import pandas as pd, os, numpy as np
 
 labels = {
     255: "0: NODATA",
@@ -35,6 +35,7 @@ class GHS:
         self.prefix = prefix
         self.save_dir = save_dir
         self.ref_data = df.drop(columns=drop_columns)
+        default_col = list(self.ref_data.columns)
         self.data = df[columns_index]
         self.columns = columns_index
         dummy_val = list(labels.keys())
@@ -42,6 +43,9 @@ class GHS:
         self.dummy_df = pd.DataFrame(
             {"values": dummy_val, "index": dummy_index, "percent": 0}
         )
+        dummy_cols = [prefix + str(x) for x in np.sort(dummy_val)]
+        self.cols_align = default_col + dummy_cols
+        # print(self.cols_align)
         self.names_files = [name + ".csv" for name in name_files]
         self.max_value = max_value
         self.name_files_dir()
@@ -49,6 +53,14 @@ class GHS:
     def gen_percent(self, data: pd.DataFrame):
         cols = self.columns
         count = cols[2]
+        total = (
+            data[["index", "values", "count"]]
+            .groupby(["index", "values"])
+            .sum()
+            .reset_index()
+        )
+        total.columns = ["index", "values", "count_total"]
+        # data = data.join(total, on=["index", "values"])
         result = (
             data.groupby("index")
             .apply(lambda x: x.assign(percent=x[count] / x[count].sum() * 100))
@@ -64,6 +76,7 @@ class GHS:
         values_cols = data_with_dummy["values"]
         values_cols = [self.prefix + str(int(x)) for x in values_cols]
         data_with_dummy["values"] = values_cols
+
         result = data_with_dummy.pivot_table(
             index="index", columns="values", values="percent", fill_value=0
         ).reset_index()
@@ -91,6 +104,8 @@ class GHS:
         cols = self.columns
         drop_na_value = self.max_value
         data = self.data
+        cols_orden = self.cols_align
+
         data[cols[1]] = data[cols[1]].astype(float)
         max_value = int(max(data[cols[1]]))
         col_drop = self.prefix + str(max_value)
@@ -99,8 +114,12 @@ class GHS:
         na_result = self.join_percent(data_with_na)
         no_na_result = self.join_percent(data_with_no_na)
         ref_data = self.ref_data
-        na_result = pd.merge(ref_data, na_result, on="index").drop_duplicates()
-        no_na_result = pd.merge(ref_data, no_na_result, on="index").drop_duplicates()
+        na_result = pd.merge(ref_data, na_result, on="index").drop_duplicates()[
+            cols_orden
+        ]
+        no_na_result = pd.merge(ref_data, no_na_result, on="index").drop_duplicates()[
+            cols_orden
+        ]
         na_result.to_csv(save_name_files[0], index=False)
         no_na_result.to_csv(save_name_files[1], index=False)
 
