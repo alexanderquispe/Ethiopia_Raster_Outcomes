@@ -2,4 +2,6 @@ output/trash/
 .Rproj.user
 *Rproj
 Data/Raster/*/
+Data/gjson/okkla/
+Data/shapefiles/9_internet_speed/
 *pycache*
