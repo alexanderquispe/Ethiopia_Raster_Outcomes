@@ -73,6 +73,7 @@ class RasterIOInd:
         values = np.array(raster_cropped.flatten()).astype(float)
         values = values[~np.isnan(values)]
         values = values[values > 0]
+        self.sample_values = np.unique(values)
         if self.settlement:
             return values
         metrics = self.metrics
