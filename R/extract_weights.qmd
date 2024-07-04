@@ -1,0 +1,115 @@
+```{r}
+
+
+
+library(raster)
+library(sf)
+library(exactextractr)
+library(tidyverse)
+
+pop_p = "../Data/Raster/Population/eth_ppp_2020_constrained.tif"
+admin3 = "../Data/gjson/adm_3.geojson"
+
+decision = "../Data/Raster/ETH_Maternal_and_child_socioeconomic/ETH_DECISION_MEAN.tif"
+
+pop <- raster(pop_p) 
+shp_1 <- st_read(admin3)|> arrange(area) 
+des = raster(decision)
+
+target_shp <- shp_1 |> slice(100)
+```
+
+```{r}
+raster_mask <- function(raster, shp){
+  raster::crop(raster, shp) |> 
+    raster::mask(shp)
+}
+raster_df <- function(raster) {
+  rasterToPoints(raster) |> as.data.frame() |> as_tibble() |> 
+    rename(z = 3)
+}
+
+sum_coords <- function(shp_target_for_raster, weigth_raster, real_shp, method = sum) {
+  n <- dim(shp_target_for_raster)[1]
+  map_dbl(
+    1:n,
+    \(x) raster_mask(weigth_raster, shp_target_for_raster |> slice(x)) |> 
+      raster_df() |> 
+      pull(z) |> 
+      method()
+  )
+}
+
+get_ind_weight <- function(raster_target, raster_weight, target_shp, method) {
+  
+  weight_crop_raster <- raster_mask(raster_weight, target_shp)
+  target_crop_raster <- raster_mask(raster_target, target_shp)
+  
+  target_df <- weight_crop_raster |> raster_df()
+  des_df <- target_crop_raster |> raster_df()
+  real_shp_raster_target <- target_crop_raster |> rasterToPolygons() |> st_as_sf()
+
+  gc()
+  
+  weight <- method(target_df$z)
+  
+  
+  real_shp_raster_target |> 
+    sf::st_drop_geometry() |> 
+    rename(ind = 1) |> 
+    mutate(
+      value = sum_coords(real_shp_raster_target, weight_crop_raster, method),
+      weight,
+      z = value * ind / weight
+    ) 
+}
+
+
+# get_ind_weight(des, pop, target_shp, sum) 
+
+```
+
+
+```{r}
+cols_id <- c("id", "fnid", "parent_id", "admin_0", "admin_1", "admin_2", "admin_3")
+results <- tibble()
+
+gen_ind <- function(shp, r_t=des, r_w=pop,  method_w = sum, master_dir = "../output/maternal_child_socioeconomic/temp/") {
+
+  
+  ref <- shp |>
+    st_drop_geometry() |>
+      dplyr::select(any_of( cols_id
+    ))
+  
+  name_id <- ref |> pull(fnid)
+  name_csv <- paste0(master_dir, name_id, ".csv")
+  
+  if(fs::file_exists(name_csv)){
+    # print('red')
+    return(read_csv(name_csv))
+  }
+  z <- get_ind_weight(r_t, r_w, shp, method_w) |> pull(z)
+  result_i <- 
+    ref |> 
+    mutate(
+      des_mean = mean(z, na.rm=T),
+      des_sd = sd(z, na.rm=T),
+      des_sd = ifelse(is.na(des_sd), 0, des_sd),
+      des_sum = sum(z, na.rm=T)
+    ) 
+  gc()
+  result_i |> write_csv(name_csv)
+  
+  return(result_i)
+}
+total_rows <- dim(shp_1)[1]
+results <- map_df(
+  1:total_rows,
+  # 1:3,
+  \(x) gen_ind(shp_1 |> slice(x))
+)
+
+results |> write_csv("../output/maternal_child_socioeconomic/decision_weight")
+```
+
