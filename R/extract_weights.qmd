@@ -1,0 +1,97 @@
+```{r}
+
+
+
+library(sf)
+library(exactextractr)
+library(tidyverse)
+
+pop_p = "../Data/Raster/Population/eth_ppp_2020_constrained.tif"
+admin3 = "../Data/gjson/adm_3.geojson"
+
+decision = "../Data/Raster/ETH_Maternal_and_child_socioeconomic/ETH_DECISION_MEAN.tif"
+hw = '../Data/Raster/ETH_Maternal_and_child_socioeconomic/ETH_HWEALTH_MEAN.tif'
+education = "../Data/Raster/ETH_Maternal_and_child_socioeconomic/ETH_MEDUCATION_MEAN.tif"
+
+pop <- terra::rast(pop_p) 
+shp_1 <- st_read(admin3) |> arrange(des(area))
+des = terra::rast(decision)
+hwealth = terra::rast(hw)
+education = terra::rast(education)
+
+target_shp <- shp_1 |> slice(100)
+
+cols_id <- c("id", "fnid", "parent_id", "admin_0", "admin_1", "admin_2", "admin_3")
+total_rows <- dim(shp_1)[1]
+```
+
+```{r}
+
+
+get_real_sum_shp <- function(raster_original, shp_file, weight_raster = pop) {
+  a <- terra::crop(raster_original, shp_file) |> terra::mask(shp_file)
+  b <- terra::crop(weight_raster, shp_file) |> terra::mask(shp_file)
+  b1 <- resample(b, a, method= "sum")
+  value = exact_extract(a, shp_file, weights = b1) [[1]] |> drop_na(weight) |> 
+    mutate(
+      real =value *  weight,
+      real_sum = real / sum(weight)
+      ) |> 
+    drop_na(real_sum) |> 
+    pull(real_sum) |> 
+    sum() 
+  return(value)
+}
+
+
+ind_des <- map_dbl(1:total_rows, \(x) get_real_sum_shp(des, shp_1 |> slice(x)), .progress = T)
+ind_hw <- map_dbl(1:total_rows, \(x) get_real_sum_shp(hwealth, shp_1 |> slice(x)), .progress = T)
+ind_edu <- map_dbl(1:total_rows, \(x) get_real_sum_shp(education, shp_1 |> slice(x)), .progress = T)
+
+result <- 
+  shp_1 |> 
+  st_drop_geometry() |> 
+  select(any_of(cols_id)) |> 
+  mutate(
+    decision_rw = ind_des,
+    hweatlth_rw = ind_hw,
+    education_rw = ind_edu,
+  ) 
+result |> 
+  write_csv(
+  "../output/maternal_child_socioeconomic/eth_maternal_child_socioeconomic.csv"
+  )
+
+```
+
+```{r}
+map_df(
+  # 1:total_rows,
+  1:3,
+  \(x) gen_ind(shp_1 |> slice(x), name_r = "decision_weight", r_t = des)
+) |> 
+  write_csv("../output/maternal_child_socioeconomic/decision_weight.csv")
+```
+
+```{r}
+
+map_df(
+  1:total_rows,
+  # 1:3,
+  \(x) gen_ind(shp_1 |> slice(x), name_r = "hwealth_weight", r_t = hwealth)
+) |> 
+  write_csv("../output/maternal_child_socioeconomic/hwealth_weight.csv")
+
+```
+
+```{r}
+
+map_df(
+  1:total_rows,
+  # 1:3,
+  \(x) gen_ind(shp_1 |> slice(x), name_r = "education_weight", r_t = hwealth)
+) |> 
+  write_csv("../output/maternal_child_socioeconomic/education_weight.csv")
+
+```
+
